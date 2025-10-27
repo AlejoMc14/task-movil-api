@@ -1,17 +1,40 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16
-    container_name: crud_postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: crud_db
+  app:
+    build: .
     ports:
-      - "5432:5432"
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/myapp
+      - SPRING_DATA_MONGODB_USERNAME=admin
+      - SPRING_DATA_MONGODB_PASSWORD=password
+    depends_on:
+      - mongo
+    networks:
+      - app-network
+    restart: unless-stopped
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./logs:/app/logs  # Para logs persistentes (opcional, si configuras logging a archivos)
+
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=myapp
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app-network
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mongo_data:
+
+networks:
+  app-network:
+    driver: bridge

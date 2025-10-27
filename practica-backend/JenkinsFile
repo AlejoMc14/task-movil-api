@@ -1,0 +1,61 @@
+import java.time.*
+import java.time.format.DateTimeFormatter
+
+pipeline {
+    agent any  // Usa tu máquina local con Docker
+
+    environment {
+        DATE_NOW = ''  // Se define en el stage
+        DOCKER_TAG = ''  // Se define dinámicamente
+        REPOSITORY_URI = 'task-movil-api'  // Nombre de tu imagen Docker (cámbialo si quieres)
+        REPOSITORY_URI_APP = ''  // Se combina con tag
+    }
+
+    stages {
+        stage('Checkout') {  // Descarga el código de GitHub
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {  // Construye la imagen Docker
+            steps {
+                sh 'docker build -t task-movil-api .'  // Usa tu Dockerfile
+            }
+        }
+
+        stage('Test') {  // Prueba la app (opcional, si tienes tests)
+            steps {
+                sh 'docker run --rm task-movil-api mvn test'  // Corre tests en el contenedor
+            }
+        }
+
+        stage('Construyendo tag') {  // Crea un tag único para la imagen
+            steps {
+                script {
+                    def now = new Date()
+                    DATE_NOW = now.format("yyMMdd.HHmm", TimeZone.getTimeZone('UTC'))
+                    DOCKER_TAG = "${DATE_NOW}.${BUILD_NUMBER}".take(8)  // Ej. 240101.1
+                    REPOSITORY_URI_APP = "${REPOSITORY_URI}:${DOCKER_TAG}"
+                }
+            }
+        }
+
+        stage('Desplegando') {  // Despliega con Docker Compose
+            steps {
+                sh "CONTAINER_IMAGE=${REPOSITORY_URI_APP} docker compose -f ./docker-compose.yml up -d --build && docker image prune -f"
+                // Cambia ./docker-compose.yml si está en otra ruta (ej. ./devops/docker-compose.yml)
+                // Quita 'sudo' si no lo necesitas
+            }
+        }
+    }
+
+    post {  // Mensajes finales
+        success {
+            echo "¡Despliegue exitoso! Imagen: ${REPOSITORY_URI_APP}, App en http://localhost:80"
+        }
+        failure {
+            echo 'Falló el despliegue. Revisa logs.'
+        }
+    }
+}
